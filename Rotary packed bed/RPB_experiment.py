@@ -31,11 +31,13 @@ from idaes.models_extra.power_generation.properties.natural_gas_PR import (
 
 from pyomo.network import Arc
 
+from pyomo.contrib.parmest.experiment import Experiment
+
 from idaes.core.util.model_diagnostics import DiagnosticsToolbox
 
 import numpy as np
 
-class TC_Lab_experiment(Experiment):
+class RPB_experiment(Experiment):
     def __init__(self, theta_initial=None, rpm=0.01, pressure=1.01e5):
         """
         Arguments
@@ -45,12 +47,10 @@ class TC_Lab_experiment(Experiment):
         pressure: float, pressure design spec for inlet gas, Pa
         
         """
-        self.data = data
+        # Make the dictionary
+        self.theta_initial = {}
 
         if theta_initial is None:
-            # Make the dictionary
-            self.theta_initial = {}
-
             # Default values from RPB_model
             self.theta_initial['hgx'] = 25 * 1e-3
             self.theta_initial['C1'] = 2.562434e-12
@@ -140,6 +140,8 @@ class TC_Lab_experiment(Experiment):
         m.fs.RPB.w_rpm.fix(self.w_rpm)
 
         # Fix inlet pressure at decision specified by user
+        m.fs.flue_gas_in.properties[0.0].pressure.setub(3e5)
+        m.fs.RPB.ads.inlet_properties[0.0].pressure.setub(3e5)
         m.fs.flue_gas_in.pressure.fix(self.pressure)
 
         # initialize feed and product blocks
@@ -164,6 +166,10 @@ class TC_Lab_experiment(Experiment):
         }
 
         init_points = [1e-5,1e-3,1e-1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1]
+
+        for i in m.fs.RPB.ads.z:
+            for j in m.fs.RPB.ads.o:
+                m.fs.RPB.ads.gas_properties[0, i, j].pressure.setub(3e5)
 
         m.fs.RPB.initialize(outlvl=idaeslog.INFO, optarg=optarg, initialization_points=init_points)
 
@@ -195,10 +201,14 @@ class TC_Lab_experiment(Experiment):
         # (experiment measurements)
         
         m.experiment_outputs = Suffix(direction=Suffix.LOCAL)
-        # Add sensor 1 temperature (m.Ts1) to experiment outputs
-        m.experiment_outputs.update((m.Ts1[t], self.data.T1[ind]) for ind, t in enumerate(self.data.time))
-        if self.number_of_states == 4:
-            m.experiment_outputs.update((m.Ts2[t], self.data.T2[ind]) for ind, t in enumerate(self.data.time))
+        # Add adsorber gas temperature to outputs
+        m.experiment_outputs.update((m.fs.RPB.ads.Tg[0, i, j], m.fs.RPB.ads.Tg[0, i, j]()) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add desorber gas temperature to outputs
+        m.experiment_outputs.update((m.fs.RPB.des.Tg[0, i, j], m.fs.RPB.des.Tg[0, i, j]()) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add adsorber mole fraction of CO2 to outputs
+        m.experiment_outputs.update((m.fs.RPB.ads.y[0, i, j, "CO2"], m.fs.RPB.ads.y[0, i, j, "CO2"]()) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add desorber mole fraction of CO2 to outputs
+        m.experiment_outputs.update((m.fs.RPB.des.y[0, i, j, "CO2"], m.fs.RPB.des.y[0, i, j, "CO2"]()) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
         
         # End experiment outputs
         #################################
@@ -208,8 +218,10 @@ class TC_Lab_experiment(Experiment):
         
         m.unknown_parameters = Suffix(direction=Suffix.LOCAL)
         # Add labels to all unknown parameters with nominal value as the value
-        m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.hgx, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3])
+        # m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.hgx, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3])
+        m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3])
         
+
         # End unknown parameters
         #################################
         
@@ -230,10 +242,15 @@ class TC_Lab_experiment(Experiment):
         # (for experiment outputs)
         
         m.measurement_error = Suffix(direction=Suffix.LOCAL)
-        # Add sensor 1 temperature (m.Ts1) measurement error (assuming constant error of 0.25 deg C)
-        m.measurement_error.update((m.Ts1[t], 0.25) for t in self.data.time)
-        if self.number_of_states == 4:
-            m.measurement_error.update((m.Ts2[t], 1) for ind, t in enumerate(self.data.time))
+        # Add adsorber gas temperature to measurement error (assume 0.5 degree measurement error)
+        m.measurement_error.update((m.fs.RPB.ads.Tg[0, i, j], 0.5) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add desorber gas temperature to measurement error (assume 0.5 degree measurement error)
+        m.measurement_error.update((m.fs.RPB.des.Tg[0, i, j], 0.5) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add adsorber mole fraction of CO2 to measurement error (assume 0.0001 mole frac error)
+        m.measurement_error.update((m.fs.RPB.ads.y[0, i, j, "CO2"], 1e-4) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add desorber mole fraction of CO2 to measurement error
+        m.measurement_error.update((m.fs.RPB.des.y[0, i, j, "CO2"], 1e-4) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        
         
         # End measurement error
         #################################
