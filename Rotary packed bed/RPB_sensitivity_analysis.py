@@ -52,6 +52,8 @@ for pressure_val in np.linspace(pressure_bounds[0], pressure_bounds[1], num_pts_
         except:
             print("\n\nFAILED ITERATION {}\n\n".format(count))
             FIM = np.zeros(6)
+        
+        np.savetxt('RPB_36_point_FIM_results_flat_{}.csv'.format(count), FIM.flatten(), delimiter=',')
 
         FIM_results.append(FIM)
 
