@@ -16,8 +16,8 @@ pressure_bounds = (120, 250)
 RPM_bounds = (0.01, 0.1)
 
 # Remove when not testing small set
-num_pts_pressure = 2
-num_pts_RPM = 2
+# num_pts_pressure = 2
+# num_pts_RPM = 2
 
 FIM_results = []
 data_pressure = []
@@ -47,7 +47,11 @@ for pressure_val in np.linspace(pressure_bounds[0], pressure_bounds[1], num_pts_
                                       scale_nominal_param_value=True,
                                       tee=True,)
         
-        FIM = RPB_DoE.compute_FIM(method='kaug')
+        try:
+            FIM = RPB_DoE.compute_FIM(method='kaug')
+        except:
+            print("\n\nFAILED ITERATION {}\n\n".format(count))
+            FIM = np.zeros(6)
 
         FIM_results.append(FIM)
 
@@ -111,7 +115,7 @@ data_A[:, 1] = data_RPM
 data_A[:, 2] = FIM_metrics_np[:, 0]
 
 plot_heatmap(data_A, "RPB Sensitivity: A-Optimality", y_label, x_label, "log10(trace(FIM))")
-plt.savefig('test_A.png', format='png', dpi=450)
+plt.savefig('RPB_16_point_A.png', format='png', dpi=450)
 
 # Draw D-optimality figure
 data_D = np.zeros((len(FIM_metrics), 3))
@@ -120,7 +124,7 @@ data_D[:, 1] = data_RPM
 data_D[:, 2] = FIM_metrics_np[:, 1]
 
 plot_heatmap(data_D, "RPB Sensitivity: D-Optimality", y_label, x_label, "log10(det(FIM))")
-plt.savefig('test_D.png', format='png', dpi=450)
+plt.savefig('RPB_16_point_D.png', format='png', dpi=450)
 
 # Draw E-optimality figure
 data_E = np.zeros((len(FIM_metrics), 3))
@@ -129,7 +133,7 @@ data_E[:, 1] = data_RPM
 data_E[:, 2] = FIM_metrics_np[:, 2]
 
 plot_heatmap(data_E, "RPB Sensitivity: E-Optimality", y_label, x_label, "log10(min-eig(FIM))")
-plt.savefig('test_E.png', format='png', dpi=450)
+plt.savefig('RPB_16_point_E.png', format='png', dpi=450)
 
 # Draw ME-optimality figure
 data_ME = np.zeros((len(FIM_metrics), 3))
@@ -138,4 +142,8 @@ data_ME[:, 1] = data_RPM
 data_ME[:, 2] = FIM_metrics_np[:, 3]
 
 plot_heatmap(data_ME, "RPB Sensitivity: ME-Optimality", y_label, x_label, "log10(cond(FIM))")
-plt.savefig('test_ME.png', format='png', dpi=450)
+plt.savefig('RPB_16_point_ME.png', format='png', dpi=450)
+
+# Save the FIM outputs in a csv file as a flat array
+FIM_results_np = np.asarray(FIM_results)
+np.savetxt('RPB_36_point_FIM_results_flat.csv', FIM_results_np.flatten(), delimiter=',')

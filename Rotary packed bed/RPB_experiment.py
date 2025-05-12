@@ -101,10 +101,25 @@ class RPB_experiment(Experiment):
         m.fs.regeneration_prod = Product(property_package = m.fs.gas_props)
 
         # limited discretization, much faster
+        # m.fs.RPB = RotaryPackedBed(
+            # property_package = m.fs.gas_props,
+            # z_init_points = (0.01,0.99),
+            # o_init_points = (0.01,0.99),
+        # )
+        
+        # Larger discretization
+        z_init_points=tuple(np.geomspace(0.01, 0.5, 9)[:-1]) + tuple((1 - np.geomspace(0.01, 0.5, 9))[::-1])
+        o_init_points=tuple(np.geomspace(0.005, 0.1, 8)) + tuple(np.linspace(0.1, 0.995, 10)[1:])
+
+        z_nfe=20
+        o_nfe=20
+
         m.fs.RPB = RotaryPackedBed(
             property_package = m.fs.gas_props,
-            z_init_points = (0.01,0.99),
-            o_init_points = (0.01,0.99),
+            z_init_points=z_init_points,
+            o_init_points=o_init_points,
+            z_nfe=z_nfe,
+            o_nfe=o_nfe,
         )
 
         # add stream connections
@@ -219,7 +234,8 @@ class RPB_experiment(Experiment):
         m.unknown_parameters = Suffix(direction=Suffix.LOCAL)
         # Add labels to all unknown parameters with nominal value as the value
         # m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.hgx, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3])
-        m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3])
+        # m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3])
+        m.unknown_parameters.update((k, k.value) for k in [m.fs.RPB.C1, m.fs.RPB.delH_1, m.fs.RPB.delH_2, m.fs.RPB.delH_3, m.fs.RPB.ads.hgx, m.fs.RPB.des.hgx])
         
 
         # End unknown parameters
@@ -246,10 +262,10 @@ class RPB_experiment(Experiment):
         m.measurement_error.update((m.fs.RPB.ads.Tg[0, i, j], 0.5) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
         # Add desorber gas temperature to measurement error (assume 0.5 degree measurement error)
         m.measurement_error.update((m.fs.RPB.des.Tg[0, i, j], 0.5) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
-        # Add adsorber mole fraction of CO2 to measurement error (assume 0.0001 mole frac error)
-        m.measurement_error.update((m.fs.RPB.ads.y[0, i, j, "CO2"], 1e-4) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
-        # Add desorber mole fraction of CO2 to measurement error
-        m.measurement_error.update((m.fs.RPB.des.y[0, i, j, "CO2"], 1e-4) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add adsorber mole fraction of CO2 to measurement error, proportional 1 percent error
+        m.measurement_error.update((m.fs.RPB.ads.y[0, i, j, "CO2"], 0.01*m.fs.RPB.ads.y[0, i, j, "CO2"]()) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
+        # Add desorber mole fraction of CO2 to measurement error, proportional 1 percent error
+        m.measurement_error.update((m.fs.RPB.des.y[0, i, j, "CO2"], 0.01*m.fs.RPB.des.y[0, i, j, "CO2"]()) for i in m.fs.RPB.ads.z for j in m.fs.RPB.ads.o)
         
         
         # End measurement error
